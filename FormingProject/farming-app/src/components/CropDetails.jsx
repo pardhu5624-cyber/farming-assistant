@@ -1,154 +1,33 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { 
-  FaArrowLeft, FaSeedling, FaTemperatureHigh, FaTint, FaClock, 
-  FaMapMarkerAlt, FaFlask, FaWeightHanging, FaListAlt, 
-  FaRobot, FaTimes, FaPaperPlane, FaFilePdf, FaDownload,
-  FaLeaf, FaSun, FaWater, FaSeedling as FaSprout
-} from 'react-icons/fa';
-import html2pdf from 'html2pdf.js';
-import './CropDetails.css';
+const handleSendMessage = async () => {
+  if (!inputMessage.trim()) return;
 
-const CropDetails = () => {
-  // ========== ROUTER HOOKS ==========
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { crop } = location.state || {};
-
-  // ========== COMPONENT STATE ==========
-  // Chatbot states
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  
-  // PDF generation state
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-
-  // ========== REFS ==========
-  const messagesEndRef = useRef(null);
-  const pdfContentRef = useRef(null);
-  const stagesContainerRef = useRef(null);
-
-  // ========== INITIALIZATION ==========
-  useEffect(() => {
-    // Initialize chat messages when crop data is available
-    if (crop) {
-      setMessages([
-        { 
-          id: 1, 
-          text: `Hi! I'm your farming assistant. Ask me anything about ${crop.name} cultivation!`, 
-          sender: 'bot' 
-        }
-      ]);
-    }
-  }, [crop]);
-
-  // ========== NAVIGATION GUARD ==========
-  if (!crop) {
-    navigate('/crops');
-    return null;
-  }
-
-  // ========== UTILITY FUNCTIONS ==========
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  const userMessage = {
+    id: messages.length + 1,
+    text: inputMessage,
+    sender: 'user'
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  setMessages(prev => [...prev, userMessage]);
+  setInputMessage('');
+  setIsLoading(true);
 
-  // ========== MESSAGE FORMATTING FUNCTIONS ==========
-  const formatBotMessage = (text) => {
-    if (!text) return text;
+  try {
+    console.log('Sending message:', inputMessage);
+    console.log('API URL:', 'http://localhost:5000/api/chat'); // Updated debug log
 
-    const lines = text.split('\n');
-    let formattedLines = [];
+    const cropContext = `
+      Crop: ${crop.name}
+      Season: ${crop.season}
+      Soil Type: ${crop.soil}
+      Temperature: ${crop.temp}
+      Water Requirement: ${crop.water}
+      Duration: ${crop.duration}
+      Fertilizer: ${crop.fertilizer}
+      Expected Yield: ${crop.yield}
+    `;
 
-    lines.forEach((line) => {
-      const trimmedLine = line.trim();
-      
-      // Skip empty lines but add a line break
-      if (trimmedLine === '') {
-        formattedLines.push('<br/>');
-        return;
-      }
-
-      // Check for numbered lists (e.g., "1. ", "2. ")
-      if (/^\d+\.\s/.test(trimmedLine)) {
-        formattedLines.push(`<div class="bot-message-list-item numbered">${trimmedLine}</div>`);
-      }
-      // Check for bullet points (e.g., "- ", "• ")
-      else if (/^[-•]\s/.test(trimmedLine)) {
-        formattedLines.push(`<div class="bot-message-list-item bullet">${trimmedLine}</div>`);
-      }
-      // Check for headings/sections (e.g., "**Title:**" or "Title:")
-      else if (trimmedLine.includes(':**') || /^[A-Z][a-z]+:/.test(trimmedLine) || /^[A-Z\s]+:$/.test(trimmedLine)) {
-        formattedLines.push(`<h4 class="bot-message-heading">${trimmedLine}</h4>`);
-      }
-      // Check for key-value pairs (e.g., "Temperature: 25°C")
-      else if (trimmedLine.includes(':') && !trimmedLine.startsWith('http')) {
-        const parts = trimmedLine.split(':');
-        if (parts.length >= 2) {
-          formattedLines.push(`<div class="bot-message-keyvalue"><strong>${parts[0]}:</strong>${parts.slice(1).join(':')}</div>`);
-        } else {
-          formattedLines.push(`<div class="bot-message-paragraph">${trimmedLine}</div>`);
-        }
-      }
-      // Regular paragraph
-      else {
-        formattedLines.push(`<div class="bot-message-paragraph">${trimmedLine}</div>`);
-      }
-    });
-
-    return formattedLines.join('');
-  };
-
-  const renderMessage = (msg) => {
-    if (msg.sender === 'bot') {
-      return (
-        <div className="message-content bot-message-formatted">
-          <div dangerouslySetInnerHTML={{ __html: formatBotMessage(msg.text) }} />
-        </div>
-      );
-    }
-    return (
-      <div className="message-content">
-        <p>{msg.text}</p>
-      </div>
-    );
-  };
-
-  // ========== CHATBOT FUNCTIONS ==========
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
-
-    // Add user message
-    const userMessage = {
-      id: messages.length + 1,
-      text: inputMessage,
-      sender: 'user'
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
-
-    try {
-      // Create context about the crop
-      const cropContext = `
-        Crop: ${crop.name}
-        Season: ${crop.season}
-        Soil Type: ${crop.soil}
-        Temperature: ${crop.temp}
-        Water Requirement: ${crop.water}
-        Duration: ${crop.duration}
-        Fertilizer: ${crop.fertilizer}
-        Expected Yield: ${crop.yield}
-      `;
-
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/chat`, {
+    // HARDCODED URL FOR TESTING
+    const response = await fetch(`http://localhost:5000/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -159,30 +38,37 @@ const CropDetails = () => {
       }),
     });
 
-      const data = await response.json();
-      
-      // Add bot response
-      const botMessage = {
-        id: messages.length + 2,
-        text: data.reply,
-        sender: 'bot'
-      };
-
-      setMessages(prev => [...prev, botMessage]);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      
-      // Add error message
-      const errorMessage = {
-        id: messages.length + 2,
-        text: "Sorry, I'm having trouble connecting. Please try again later.",
-        sender: 'bot'
-      };
-      setMessages(prev => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
+    console.log('Response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
-  };
+
+    const data = await response.json();
+    console.log('Response data:', data);
+    
+    const botMessage = {
+      id: messages.length + 2,
+      text: data.reply,
+      sender: 'bot'
+    };
+
+    setMessages(prev => [...prev, botMessage]);
+  } catch (error) {
+    console.error('Detailed error:', error);
+    
+    const errorMessage = {
+      id: messages.length + 2,
+      text: `Error: ${error.message}. Please check if the server is running at http://localhost:5000`,
+      sender: 'bot'
+    };
+    setMessages(prev => [...prev, errorMessage]);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
